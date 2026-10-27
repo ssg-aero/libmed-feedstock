@@ -3,7 +3,7 @@ schema_version: 1
 context:
   name: libmed
   version: "4.2"
-  build: 29
+  build: 30
   sha256: a0193de4f0fef916ea9b83fb3e69e0717068a6bb41474ea8b6b0dece10b56d13
   mpi_prefix: ${{ mpi }}
 
@@ -30,6 +30,11 @@ source:
     - patches/cmake-modern-python.patch
     - patches/link-privately.patch
     - patches/py313_support.patch
+    # medfwrap calls MPI C functions: link it against MPI (required on macOS)
+    - patches/medfwrap-link-mpi.patch
+    # MEDfieldEntityType/MEDfieldGeometryType pass a 'med_err *' as 'fret' but the
+    # versioned implementations write a 'med_int': stack overflow (abort on macOS)
+    - patches/fix-fret-type-field-entity-geometry.patch
     - if: win
       then:
         - patches/remove-mixed-str-len-arg.patch
@@ -44,7 +49,8 @@ build:
   # `pkg * nompi_*` for no mpi
   number: ${{ build|int + 100 if mpi == "nompi" else build|int }}
   string: ${{ mpi_prefix }}_h${{ hash }}_${{ build }}
-  skip: (mpi != "nompi" and (osx or win))
+  # osx: only the openmpi variant on arm64 is tested
+  skip: (mpi != "nompi" and win) or (osx and mpi == "mpich") or (osx and mpi != "nompi" and not arm64)
 
 requirements:
   build:
